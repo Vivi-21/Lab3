@@ -1,0 +1,249 @@
+/*UTN/FICA/CITEL/SISTEMAS EMBEBIDOS
+ Nombre: Yucailla Viviana
+ JUEGO ATARI: Alien Hunter
+ */
+
+import processing.serial.*;
+import ddf.minim.*;
+
+Serial port;
+AudioPlayer music1, music2, music3;
+Minim  juego, disparo, muerte;
+
+PImage Fondo;
+PImage logo;
+int tamPixel = 7;
+int tamObj = tamPixel * 11 + 5;
+Jugador jugador;
+ArrayList aliens = new ArrayList();
+ArrayList balas = new ArrayList();
+int direccion = 1;
+boolean incy = false;
+int puntaje = 0;
+PFont f1, f2, f3;
+String dato;
+int conteo = 0;
+
+
+void setup() {
+
+  size (950, 600);
+  Fondo=loadImage("galaxia6.jpg");
+  logo=loadImage("logo.png");
+
+  juego = new Minim(this);
+  disparo = new Minim(this);
+  muerte = new Minim(this);
+  music3 = juego.loadFile("juego.wav");
+  music2 = muerte.loadFile("muerte.wav");
+  music1 = disparo.loadFile("disparo.wav");
+  port = new Serial(this, "COM10", 9600);
+  jugador = new Jugador();
+  crearAliens();
+  f1 = createFont("Arial", 25, true);
+  f2 = createFont("Arial", 35, true);
+  f3 = createFont("Arial", 130, true);
+}
+
+void draw() {
+  if (music3.isPlaying()) {
+  } else {
+    music3.rewind();
+    music3.play();
+  }
+  background(0);
+  image (Fondo, 0, 0);
+  image (logo, 0, 0);
+  textFont(f1);
+  fill(0); 
+  text("Yucailla Viviana ", 750, 580);
+  fill(#EACA26);
+  textFont(f2);
+  text("SCORE: ", 650, 30);
+  fill(#EACA26);
+  text(String.valueOf(puntaje), 850, 30);
+  jugador.draw();
+
+  for (int i = 0; i < balas.size(); i++) {
+    Balas bala = (Balas) balas.get(i);
+    bala.draw();
+  }
+  for (int i = 0; i < aliens.size(); i++) {
+    Alien alien = (Alien) aliens.get(i);
+    if (alien.afuera() == true) {
+      direccion *= (-1);
+      incy = true;
+      break;
+    }
+  }
+
+  for (int i = 0; i < aliens.size(); i++) {
+    Alien alien = (Alien) aliens.get(i);
+    if (!alien.conVida()) {
+      aliens.remove(i);
+      conteo++;
+    } else {
+      alien.draw();
+    }
+  }
+
+  if (conteo==15) {
+    textFont(f3);
+    fill(255, 255, 0);
+    text("GREAT !!", 100, 350);
+  }  
+  incy = false;
+}
+
+
+
+void crearAliens() {
+  for (int i = 0; i < width/tamObj/2; i++) {
+    for (int j = 0; j <= 2; j++) {
+      aliens.add(new Alien(i*tamObj, j*tamObj + 70));
+    }
+  }
+}
+
+class Nave {
+  int x, y, z;
+  String forma[];
+  color colorBase = color(255, 255, 255);
+  color sigColor = colorBase;
+
+  void draw() {
+    actObj();
+    dibujarForma(x, y);
+  }
+
+  void dibujarForma(int posX, int posY) {
+    fill(sigColor); 
+    sigColor = colorBase;
+
+    for (int i = 0; i < forma.length; i++) {
+      String fila = (String) forma[i];
+      for (int j = 0; j < fila.length(); j++) {
+        if (fila.charAt(j) == '1') {
+          rect(posX+(j*tamPixel), posY+(tamPixel), tamPixel, tamPixel);
+          rect(posX+(j+2*tamPixel), posY+(i+2*tamPixel), 2*tamPixel, 3*tamPixel);
+        }
+      }
+    }
+  }
+
+  void actObj() {
+  }
+}
+
+class Jugador extends Nave {
+  boolean habilitarDisparo = true;
+  int delayDisparo = 0;
+  Jugador() {
+    x = width/tamObj/2;
+    y = height - (10 * tamPixel);
+    forma    = new String[5];
+    forma[0] = "0001000";
+    forma[1] = "0011100";
+    forma[2] = "1111111";
+    forma[3] = "0001000";
+    forma[4] = "0111110";
+  }
+
+
+  void actObj() {
+    stroke(0);
+    colorBase = color(#C63C3C);
+    dato = port.readString();
+
+    if (dato != null) {
+      switch(dato) {
+      case "A": //A -> IZQUIERDA
+        x -= 25;
+        break;
+
+      case "B": //B -> DERECHA
+        x += 25;
+        break;
+
+      case "C": //C -> DISPARO
+        music1.rewind();
+        music1.play();
+        if (habilitarDisparo) {
+          balas.add(new Balas(x, y));
+          habilitarDisparo = false;
+          delayDisparo = 0;
+        }
+        break;
+      }
+    }
+
+    delayDisparo++;
+    if (delayDisparo >= 10) {
+      habilitarDisparo = true;
+    }
+  }
+}
+
+class Alien extends Nave {
+  int vidas = 2;
+
+  Alien (int xpos, int ypos) {
+    x = xpos;
+    y = ypos;
+    forma = new String[5];
+    forma[0] = "0011100";
+    forma[1] = "0111110";
+    forma[2] = "1111111";
+    forma[3] = "0100010";
+    forma[4] = "0100010";
+  }
+
+  void actObj() {
+    colorBase = color(#FFFF00);
+    if (frameCount%30 == 0) {
+      x += direccion * tamObj;
+    }
+
+    if (incy == true) {
+      y += tamObj / 2;
+    }
+  }
+
+  boolean  conVida() { 
+    for (int i = 0; i < balas.size(); i++) {
+      Balas bala = (Balas) balas.get(i);
+
+      if (bala.x > x && bala.x < x + 7 * tamPixel + 5 && bala.y > y && bala.y < y + 5 * tamPixel) {
+        balas.remove(i);
+        vidas--;
+        sigColor = color(255, 0, 0);
+
+        if (vidas == 0) {
+          music2.rewind();
+          music2.play();
+          puntaje += 50;          
+          return false;
+        }
+      }
+    }
+    return true;
+  }
+
+  boolean afuera() {
+    return x + (direccion*tamObj) < 0 || x + (direccion*tamObj) > width - tamObj;
+  }
+}
+
+class Balas {
+  int x, y;
+  Balas(int xpos, int ypos) {
+    x = xpos + tamObj/2 - 4;
+    y = ypos;
+  }
+
+  void draw() {
+    fill(255, 255, 0);
+    rect(x, y, tamPixel, tamPixel);
+    y -= tamPixel * 2;
+  }
+}
